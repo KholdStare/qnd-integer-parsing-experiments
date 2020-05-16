@@ -6,14 +6,14 @@
 #include <bitset>
 #include <immintrin.h>
 
-std::uint64_t parse_char_conv(std::string_view s) noexcept
+inline std::uint64_t parse_char_conv(std::string_view s) noexcept
 {
   std::uint64_t result = 0;
   std::from_chars(s.data(), s.data() + s.size(), result);
   return result;
 }
 
-std::uint64_t parse_simple(std::string_view s) noexcept
+inline std::uint64_t parse_simple(std::string_view s) noexcept
 {
   const char* cursor = s.data();
   const char* last = s.data() + s.size();
@@ -26,11 +26,35 @@ std::uint64_t parse_simple(std::string_view s) noexcept
   return result;
 }
 
+inline std::uint64_t parse_unrolled(std::string_view s) noexcept
+{
+  std::uint64_t result = 0;
+
+  result += (s[0] - '0') * 1000000000000000ULL;
+  result += (s[1] - '0') * 100000000000000ULL;
+  result += (s[2] - '0') * 10000000000000ULL;
+  result += (s[3] - '0') * 1000000000000ULL;
+  result += (s[4] - '0') * 100000000000ULL;
+  result += (s[5] - '0') * 10000000000ULL;
+  result += (s[6] - '0') * 1000000000ULL;
+  result += (s[7] - '0') * 100000000ULL;
+  result += (s[8] - '0') * 10000000ULL;
+  result += (s[9] - '0') * 1000000ULL;
+  result += (s[10] - '0') * 100000ULL;
+  result += (s[11] - '0') * 10000ULL;
+  result += (s[12] - '0') * 1000ULL;
+  result += (s[13] - '0') * 100ULL;
+  result += (s[14] - '0') * 10ULL;
+  result += (s[15] - '0');
+
+  return result;
+}
+
 template <typename T>
-T get_baseline() noexcept;
+inline T get_baseline() noexcept;
 
 template <>
-std::uint64_t get_baseline<std::uint64_t>() noexcept
+inline std::uint64_t get_baseline<std::uint64_t>() noexcept
 {
   std::uint64_t result = 0;
   constexpr char zeros[] = "00000000";
@@ -39,7 +63,7 @@ std::uint64_t get_baseline<std::uint64_t>() noexcept
 }
 
 template <>
-__m128i get_baseline<__m128i>() noexcept
+inline __m128i get_baseline<__m128i>() noexcept
 {
   __m128i result = {0, 0};
   constexpr char zeros[] = "0000000000000000";
@@ -48,22 +72,22 @@ __m128i get_baseline<__m128i>() noexcept
 }
 
 template <typename T>
-T byteswap(T a) noexcept;
+inline T byteswap(T a) noexcept;
 
 template <>
-std::uint64_t byteswap(std::uint64_t a) noexcept
+inline std::uint64_t byteswap(std::uint64_t a) noexcept
 {
   return __builtin_bswap64(a);
 }
 
 template <>
-__m128i byteswap(__m128i a) noexcept
+inline __m128i byteswap(__m128i a) noexcept
 {
   const auto mask = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
   return _mm_shuffle_epi8(a, mask);
 }
 
-std::uint64_t parse_16_chars(const char* string) noexcept
+inline std::uint64_t parse_16_chars(const char* string) noexcept
 {
   using T = __m128i;
   T chunk = {0, 0};
@@ -88,7 +112,7 @@ std::uint64_t parse_16_chars(const char* string) noexcept
   return ((chunk[0] >> 32) * 100000000) + (chunk[0] & 0xffffffff);
 }
 
-std::uint64_t parse_8_chars(const char* string) noexcept
+inline std::uint64_t parse_8_chars(const char* string) noexcept
 {
   std::uint64_t chunk = 0;
   std::memcpy(&chunk, string, sizeof(chunk));
@@ -112,14 +136,16 @@ std::uint64_t parse_8_chars(const char* string) noexcept
   return chunk;
 }
 
-std::uint64_t parse_trick(std::string_view s) noexcept
+inline std::uint64_t parse_trick(std::string_view s) noexcept
 {
   std::uint64_t upper_digits = parse_8_chars(s.data());
   std::uint64_t lower_digits = parse_8_chars(s.data() + 8);
   return upper_digits * 100000000 + lower_digits;
 }
 
-std::uint64_t parse_trick_simd(std::string_view s) noexcept
+inline std::uint64_t parse_trick_simd(std::string_view s) noexcept
 {
   return parse_16_chars(s.data());
 }
+
+extern const char* example_timestamp;
