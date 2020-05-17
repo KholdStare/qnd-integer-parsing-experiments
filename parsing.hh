@@ -13,7 +13,7 @@ inline std::uint64_t parse_char_conv(std::string_view s) noexcept
   return result;
 }
 
-inline std::uint64_t parse_simple(std::string_view s) noexcept
+inline std::uint64_t parse_naive(std::string_view s) noexcept
 {
   const char* cursor = s.data();
   const char* last = s.data() + s.size();

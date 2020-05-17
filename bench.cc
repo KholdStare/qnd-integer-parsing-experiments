@@ -5,9 +5,15 @@
 
 std::string_view example_stringview{example_timestamp, 16};
 
-static void BM_simple(benchmark::State& state) {
+static void BM_mov(benchmark::State& state) {
   for (auto _ : state) {
-    benchmark::DoNotOptimize(parse_simple(example_stringview));
+    benchmark::DoNotOptimize(1585201087123789);
+  }
+}
+
+static void BM_naive(benchmark::State& state) {
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(parse_naive(example_stringview));
   }
 }
 
@@ -27,6 +33,7 @@ static void BM_sstream(benchmark::State& state) {
     // TODO: reset
   }
 }
+
 static void BM_charconv(benchmark::State& state) {
   for (auto _ : state) {
     benchmark::DoNotOptimize(parse_char_conv(example_stringview));
@@ -52,10 +59,11 @@ static void BM_trick_simd(benchmark::State& state) {
 }
 
 
-BENCHMARK(BM_simple);
+BENCHMARK(BM_mov);
 BENCHMARK(BM_atoll);
-BENCHMARK(BM_charconv);
 BENCHMARK(BM_sstream);
+BENCHMARK(BM_charconv);
+BENCHMARK(BM_naive);
 BENCHMARK(BM_unrolled);
 BENCHMARK(BM_trick);
 BENCHMARK(BM_trick_simd);
