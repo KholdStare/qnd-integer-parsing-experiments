@@ -15,13 +15,11 @@ inline std::uint64_t parse_char_conv(std::string_view s) noexcept
 
 inline std::uint64_t parse_naive(std::string_view s) noexcept
 {
-  const char* cursor = s.data();
-  const char* last = s.data() + s.size();
   std::uint64_t result = 0;
-  for(; cursor != last; ++ cursor)
+  for(char digit : s)
   {
     result *= 10;
-    result += *cursor - '0';
+    result += digit - '0';
   }
   return result;
 }
@@ -51,10 +49,10 @@ inline std::uint64_t parse_unrolled(std::string_view s) noexcept
 }
 
 template <typename T>
-inline T get_baseline() noexcept;
+inline T get_zeros_string() noexcept;
 
 template <>
-inline std::uint64_t get_baseline<std::uint64_t>() noexcept
+inline std::uint64_t get_zeros_string<std::uint64_t>() noexcept
 {
   std::uint64_t result = 0;
   constexpr char zeros[] = "00000000";
@@ -63,7 +61,7 @@ inline std::uint64_t get_baseline<std::uint64_t>() noexcept
 }
 
 template <>
-inline __m128i get_baseline<__m128i>() noexcept
+inline __m128i get_zeros_string<__m128i>() noexcept
 {
   __m128i result = {0, 0};
   constexpr char zeros[] = "0000000000000000";
@@ -92,7 +90,7 @@ inline std::uint64_t parse_16_chars(const char* string) noexcept
   using T = __m128i;
   T chunk = {0, 0};
   std::memcpy(&chunk, string, sizeof(chunk));
-  chunk = byteswap(chunk - get_baseline<T>());
+  chunk = byteswap(chunk - get_zeros_string<T>());
 
   {
     const auto mult = _mm_set_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
@@ -116,7 +114,7 @@ inline std::uint64_t parse_8_chars(const char* string) noexcept
 {
   std::uint64_t chunk = 0;
   std::memcpy(&chunk, string, sizeof(chunk));
-  chunk = __builtin_bswap64(chunk - get_baseline<std::uint64_t>());
+  chunk = __builtin_bswap64(chunk - get_zeros_string<std::uint64_t>());
 
   //step 1
   std::uint64_t lower_digits = chunk & 0x000f000f000f000f;
