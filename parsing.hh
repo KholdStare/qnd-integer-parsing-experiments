@@ -62,15 +62,6 @@ template <typename T>
 inline T get_zeros_string() noexcept;
 
 template <>
-inline std::uint64_t get_zeros_string<std::uint64_t>() noexcept
-{
-  std::uint64_t result = 0;
-  constexpr char zeros[] = "00000000";
-  std::memcpy(&result, zeros, sizeof(result));
-  return result;
-}
-
-template <>
 inline __m128i get_zeros_string<__m128i>() noexcept
 {
   __m128i result = {0, 0};
@@ -95,10 +86,9 @@ inline std::uint64_t parse_16_chars(const char* string) noexcept
     chunk = _mm_madd_epi16(chunk, mult);
   }
   {
-    const auto mult = _mm_set_epi32(1, 10000, 1, 10000);
-    auto multiplied = _mm_mullo_epi32(chunk, mult);
-    const __m128i zero = {0, 0};
-    chunk = _mm_hadd_epi32(multiplied, zero);
+    chunk = _mm_packus_epi32(chunk, chunk);
+    const auto mult = _mm_set_epi16(0, 0, 0, 0, 1, 10000, 1, 10000);
+    chunk = _mm_madd_epi16(chunk, mult);
   }
 
   return ((chunk[0] & 0xffffffff) * 100000000) + (chunk[0] >> 32);
@@ -108,19 +98,18 @@ inline std::uint64_t parse_8_chars(const char* string) noexcept
 {
   std::uint64_t chunk = 0;
   std::memcpy(&chunk, string, sizeof(chunk));
-  chunk -= get_zeros_string<std::uint64_t>();
 
-  //step 1
+  // 1-byte mask trick (works on 4 pairs of single digits)
   std::uint64_t lower_digits = (chunk & 0x0f000f000f000f00) >> 8;
   std::uint64_t upper_digits = (chunk & 0x000f000f000f000f) * 10;
   chunk = lower_digits + upper_digits;
 
-  // step 2
+  // 2-byte mask trick (works on 2 pairs of two digits)
   lower_digits = (chunk & 0x00ff000000ff0000) >> 16;
   upper_digits = (chunk & 0x000000ff000000ff) * 100;
   chunk = lower_digits + upper_digits;
 
-  // step 3
+  // 4-byte mask trick (works on pair of four digits)
   lower_digits = (chunk & 0x0000ffff00000000) >> 32;
   upper_digits = (chunk & 0x000000000000ffff) * 10000;
   chunk = lower_digits + upper_digits;
