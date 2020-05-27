@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(integer_parsing)
 
+find_package(Boost REQUIRED)
 add_library(
   parsing_lib
   parsing.cc
@@ -10,6 +11,7 @@ target_compile_options(
   parsing_lib
   PUBLIC ${EXTRA_FLAGS}
 )
+target_link_libraries(parsing_lib PUBLIC Boost::boost)
 
 add_executable(
   main

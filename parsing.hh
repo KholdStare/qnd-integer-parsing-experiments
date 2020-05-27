@@ -4,12 +4,22 @@
 #include <cstring>
 #include <ios>
 #include <bitset>
+#include <boost/spirit/include/qi.hpp>
 #include <immintrin.h>
 
 inline std::uint64_t parse_char_conv(std::string_view s) noexcept
 {
   std::uint64_t result = 0;
   std::from_chars(s.data(), s.data() + s.size(), result);
+  return result;
+}
+
+inline std::uint64_t parse_qi(std::string_view s) noexcept
+{
+  using boost::spirit::qi::parse;
+
+  std::uint64_t result = 0;
+  parse(s.data(), s.data() + s.size(), result);
   return result;
 }
 

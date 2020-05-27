@@ -40,6 +40,12 @@ static void BM_charconv(benchmark::State& state) {
   }
 }
 
+static void BM_boost_spirit(benchmark::State& state) {
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(parse_qi(example_stringview));
+  }
+}
+
 static void BM_unrolled(benchmark::State& state) {
   for (auto _ : state) {
     benchmark::DoNotOptimize(parse_unrolled(example_stringview));
@@ -63,6 +69,7 @@ BENCHMARK(BM_mov);
 BENCHMARK(BM_atoll);
 BENCHMARK(BM_sstream);
 BENCHMARK(BM_charconv);
+BENCHMARK(BM_boost_spirit);
 BENCHMARK(BM_naive);
 BENCHMARK(BM_unrolled);
 BENCHMARK(BM_trick);
