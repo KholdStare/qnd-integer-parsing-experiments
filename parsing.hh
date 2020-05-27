@@ -69,66 +69,50 @@ inline __m128i get_zeros_string<__m128i>() noexcept
   return result;
 }
 
-template <typename T>
-inline T byteswap(T a) noexcept;
-
-template <>
-inline std::uint64_t byteswap(std::uint64_t a) noexcept
-{
-  return __builtin_bswap64(a);
-}
-
-template <>
-inline __m128i byteswap(__m128i a) noexcept
-{
-  const auto mask = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-  return _mm_shuffle_epi8(a, mask);
-}
-
 inline std::uint64_t parse_16_chars(const char* string) noexcept
 {
   using T = __m128i;
   T chunk = {0, 0};
   std::memcpy(&chunk, string, sizeof(chunk));
-  chunk = byteswap(chunk - get_zeros_string<T>());
+  chunk = chunk - get_zeros_string<T>();
 
   {
-    const auto mult = _mm_set_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
+    const auto mult = _mm_set_epi8(1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10);
     chunk = _mm_maddubs_epi16(chunk, mult);
   }
   {
-    const auto mult = _mm_set_epi16(100, 1, 100, 1, 100, 1, 100, 1);
+    const auto mult = _mm_set_epi16(1, 100, 1, 100, 1, 100, 1, 100);
     chunk = _mm_madd_epi16(chunk, mult);
   }
   {
-    const auto mult = _mm_set_epi32(10000, 1, 10000, 1);
+    const auto mult = _mm_set_epi32(1, 10000, 1, 10000);
     auto multiplied = _mm_mullo_epi32(chunk, mult);
     const __m128i zero = {0, 0};
     chunk = _mm_hadd_epi32(multiplied, zero);
   }
 
-  return ((chunk[0] >> 32) * 100000000) + (chunk[0] & 0xffffffff);
+  return ((chunk[0] & 0xffffffff) * 100000000) + (chunk[0] >> 32);
 }
 
 inline std::uint64_t parse_8_chars(const char* string) noexcept
 {
   std::uint64_t chunk = 0;
   std::memcpy(&chunk, string, sizeof(chunk));
-  chunk = __builtin_bswap64(chunk - get_zeros_string<std::uint64_t>());
+  chunk -= get_zeros_string<std::uint64_t>();
 
   //step 1
-  std::uint64_t lower_digits = chunk & 0x000f000f000f000f;
-  std::uint64_t upper_digits = ((chunk & 0x0f000f000f000f00) >> 7) * 5;
+  std::uint64_t lower_digits = (chunk & 0x0f000f000f000f00) >> 8;
+  std::uint64_t upper_digits = (chunk & 0x000f000f000f000f) * 10;
   chunk = lower_digits + upper_digits;
 
   // step 2
-  lower_digits = chunk & 0x000000ff000000ff;
-  upper_digits = ((chunk & 0x00ff000000ff0000) >> 14) * 25;
+  lower_digits = (chunk & 0x00ff000000ff0000) >> 16;
+  upper_digits = (chunk & 0x000000ff000000ff) * 100;
   chunk = lower_digits + upper_digits;
 
   // step 3
-  lower_digits = chunk & 0x000000000000ffff;
-  upper_digits = ((chunk & 0x0000ffff00000000) >> 28) * 625;
+  lower_digits = (chunk & 0x0000ffff00000000) >> 32;
+  upper_digits = (chunk & 0x000000000000ffff) * 10000;
   chunk = lower_digits + upper_digits;
 
   return chunk;
