@@ -4,7 +4,9 @@
 #include <cstring>
 #include <ios>
 #include <bitset>
-#include <boost/spirit/include/qi.hpp>
+#ifdef QND_TEST_BOOST
+  #include <boost/spirit/include/qi.hpp>
+#endif
 #include <immintrin.h>
 
 inline std::uint64_t parse_char_conv(std::string_view s) noexcept
@@ -14,6 +16,7 @@ inline std::uint64_t parse_char_conv(std::string_view s) noexcept
   return result;
 }
 
+#ifdef QND_TEST_BOOST
 inline std::uint64_t parse_qi(std::string_view s) noexcept
 {
   using boost::spirit::qi::parse;
@@ -22,6 +25,7 @@ inline std::uint64_t parse_qi(std::string_view s) noexcept
   parse(s.data(), s.data() + s.size(), result);
   return result;
 }
+#endif
 
 inline std::uint64_t parse_naive(std::string_view s) noexcept
 {
@@ -58,24 +62,11 @@ inline std::uint64_t parse_unrolled(std::string_view s) noexcept
   return result;
 }
 
-template <typename T>
-inline T get_zeros_string() noexcept;
-
-template <>
-inline __m128i get_zeros_string<__m128i>() noexcept
-{
-  __m128i result = {0, 0};
-  constexpr char zeros[] = "0000000000000000";
-  std::memcpy(&result, zeros, sizeof(result));
-  return result;
-}
-
 inline std::uint64_t parse_16_chars(const char* string) noexcept
 {
-  using T = __m128i;
-  T chunk = {0, 0};
-  std::memcpy(&chunk, string, sizeof(chunk));
-  chunk = chunk - get_zeros_string<T>();
+  auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(string));
+  auto zeros =  _mm_set1_epi8('0');
+  chunk = chunk - zeros;
 
   {
     const auto mult = _mm_set_epi8(1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10);

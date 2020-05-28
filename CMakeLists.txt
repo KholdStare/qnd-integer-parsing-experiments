@@ -1,17 +1,25 @@
 cmake_minimum_required(VERSION 3.16)
 project(integer_parsing)
 
-find_package(Boost REQUIRED)
+option(QND_TEST_BOOST "Include Boost::Spirit::Qi in benchmarks" OFF)
+
+find_package(GTest REQUIRED)
+if (${QND_TEST_BOOST})
+  find_package(Boost REQUIRED)
+endif()
+
+set(CMAKE_CXX_STANDARD 20)
+
 add_library(
   parsing_lib
   parsing.cc
 )
-set(EXTRA_FLAGS -O3 -std=c++2a -march=native -mtune=native -Wall -Werror)
-target_compile_options(
-  parsing_lib
-  PUBLIC ${EXTRA_FLAGS}
-)
-target_link_libraries(parsing_lib PUBLIC Boost::boost)
+set(EXTRA_FLAGS -O3 -g -march=native -mtune=native -Wall -Werror)
+target_compile_options(parsing_lib PUBLIC ${EXTRA_FLAGS})
+if (${QND_TEST_BOOST})
+  target_compile_options(parsing_lib PUBLIC -DQND_TEST_BOOST)
+  target_link_libraries(parsing_lib PUBLIC Boost::boost)
+endif()
 
 add_executable(
   main
@@ -43,3 +51,9 @@ add_custom_command(
   TARGET disable-cpu-frequency-scaling
   COMMAND sudo cpupower frequency-set -g performance
 )
+
+add_executable(
+  test
+  test/test.cc
+)
+target_link_libraries(test PRIVATE parsing_lib GTest::Main)
