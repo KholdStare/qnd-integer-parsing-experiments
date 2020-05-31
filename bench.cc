@@ -79,4 +79,60 @@ BENCHMARK(BM_unrolled);
 BENCHMARK(BM_trick);
 BENCHMARK(BM_trick_simd);
 
+static void BM_charconv_range(benchmark::State& state) {
+  char buffer[32] = {0,};
+  std::sprintf(buffer, "%ld", state.range(0));
+  const char* last = buffer + sizeof(buffer);
+  for (auto _ : state) {
+    std::uint64_t result = 0;
+    std::from_chars(buffer, last, result);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+static void BM_general_trick_simd_range(benchmark::State& state) {
+  char buffer[32] = {0,};
+  std::sprintf(buffer, "%ld", state.range(0));
+  const char* last = buffer + sizeof(buffer);
+  for (auto _ : state) {
+    std::uint64_t result = 0;
+    from_chars(buffer, last, result);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+// from_chars benchmarks
+BENCHMARK(BM_charconv_range)->Range(1ull, 9999999999999999ull);
+BENCHMARK(BM_general_trick_simd_range)->Range(1ull, 9999999999999999ull);
+
+static void BM_tzcnt(benchmark::State& state) {
+  const volatile std::uint64_t value = 0x00000fffffffffff;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(__tzcnt_u64(~value));
+  }
+}
+
+static void BM_get_digit_count_from_numeric_mask(benchmark::State& state) {
+  const volatile __m128i value = _mm_set1_epi8(0xff);
+
+  for (auto _ : state) {
+    auto result = get_digit_count_from_numeric_mask(value);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+static void BM_shift_bytes_left(benchmark::State& state) {
+  std::uint64_t num_bytes = state.range(0);
+  const volatile __m128i value = _mm_set1_epi8(0xff);
+
+  for (auto _ : state) {
+    __m128i result = shift_bytes_left(value, num_bytes);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+BENCHMARK(BM_tzcnt);
+BENCHMARK(BM_get_digit_count_from_numeric_mask);
+BENCHMARK(BM_shift_bytes_left)->DenseRange(0, 16, 1);
+
 BENCHMARK_MAIN();

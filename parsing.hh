@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include <iomanip>
 #include <charconv>
 #include <cstring>
 #include <ios>
@@ -62,12 +63,8 @@ inline std::uint64_t parse_unrolled(std::string_view s) noexcept
   return result;
 }
 
-inline std::uint64_t parse_16_chars(const char* string) noexcept
+inline std::uint64_t assemble_from_128i(__m128i chunk) noexcept
 {
-  auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(string));
-  auto zeros =  _mm_set1_epi8('0');
-  chunk = chunk - zeros;
-
   {
     const auto mult = _mm_set_epi8(1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10);
     chunk = _mm_maddubs_epi16(chunk, mult);
@@ -83,6 +80,14 @@ inline std::uint64_t parse_16_chars(const char* string) noexcept
   }
 
   return ((chunk[0] & 0xffffffff) * 100000000) + (chunk[0] >> 32);
+}
+
+inline std::uint64_t parse_16_chars(const char* string) noexcept
+{
+  auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(string));
+  auto zeros =  _mm_set1_epi8('0');
+  chunk = chunk - zeros;
+  return assemble_from_128i(chunk);
 }
 
 inline std::uint64_t parse_8_chars(const char* string) noexcept
@@ -118,6 +123,69 @@ inline std::uint64_t parse_trick(std::string_view s) noexcept
 inline std::uint64_t parse_trick_simd(std::string_view s) noexcept
 {
   return parse_16_chars(s.data());
+}
+
+template <typename T>
+inline void print_bits(T v)
+{
+  std::cout << std::setfill('0') << std::setw(sizeof(v) * 2) << std::hex << v
+    << " " << std::bitset<sizeof(v) * 8>(v) << std::endl;
+}
+
+inline __m128i get_numeric_mask(__m128i chunk)
+{
+  const auto wrap = _mm_set1_epi8(-128);
+  const auto digit_upper_bound = _mm_set1_epi8(10) + wrap;
+  return _mm_cmplt_epi8(chunk + wrap, digit_upper_bound);
+}
+
+inline std::uint64_t get_digit_count_from_numeric_mask(__m128i mask)
+{
+  // not using SSE sucks
+  auto lower_digits_count = __tzcnt_u64(~mask[0]);
+  auto upper_digits_count = __tzcnt_u64(~mask[1]);
+  const bool lower_has_all_digits = lower_digits_count == (sizeof(mask[0]) * 8);
+  upper_digits_count *= lower_has_all_digits;
+  return (lower_digits_count + upper_digits_count) >> 3;
+}
+
+inline __m128i shift_bytes_left(__m128i a, std::uint64_t num_bytes)
+{
+  // branching sucks
+  if (num_bytes >= 8)
+  {
+    auto shifted = _mm_slli_si128(a, 8);
+    return _mm_slli_epi64(shifted, (num_bytes - 8) * 8);
+  }
+  else
+  {
+    auto partial_result = _mm_slli_epi64(a, num_bytes * 8);
+    auto overlay = _mm_srli_epi64(a, (8 - num_bytes) * 8);
+    overlay = _mm_slli_si128(overlay, 8);
+    return _mm_or_si128(partial_result, overlay);
+  }
+}
+
+inline std::from_chars_result from_chars(const char* first, const char* last, std::uint64_t& value)
+{
+  auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(first));
+  const auto zeros = _mm_set1_epi8('0');
+  chunk = chunk - zeros;
+
+  const auto numeric_mask = get_numeric_mask(chunk);
+  const auto num_digits = get_digit_count_from_numeric_mask(numeric_mask);
+
+  chunk = shift_bytes_left(chunk, sizeof(chunk) - num_digits);
+
+  value = assemble_from_128i(chunk);
+  return {first + num_digits}; // TODO: return an error code
+}
+
+inline std::uint64_t parse_general_trick_simd(std::string_view s) noexcept
+{
+  std::uint64_t result = 0;
+  from_chars(s.data(), s.data() + s.size(), result);
+  return result;
 }
 
 extern const char* example_timestamp;
