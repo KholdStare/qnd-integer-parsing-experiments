@@ -125,56 +125,74 @@ inline std::uint64_t parse_trick_simd(std::string_view s) noexcept
   return parse_16_chars(s.data());
 }
 
-template <typename T>
-inline void print_bits(T v)
+namespace detail
 {
-  std::cout << std::setfill('0') << std::setw(sizeof(v) * 2) << std::hex << v
-    << " " << std::bitset<sizeof(v) * 8>(v) << std::endl;
-}
-
-inline __m128i get_numeric_mask(__m128i chunk)
-{
-  const auto wrap = _mm_set1_epi8(-128);
-  const auto digit_upper_bound = _mm_set1_epi8(10) + wrap;
-  return _mm_cmplt_epi8(chunk + wrap, digit_upper_bound);
-}
-
-inline std::uint64_t get_digit_count_from_numeric_mask(__m128i mask)
-{
-  auto condensed_mask = _mm_movemask_epi8(mask);
-  return __tzcnt_u64(~condensed_mask);
-}
-
-inline __m128i shift_bytes_left(__m128i a, std::uint64_t num_bytes)
-{
-  // branching sucks
-  if (num_bytes >= 8)
+  template <typename T>
+  inline void print_bits(T v)
   {
-    auto shifted = _mm_slli_si128(a, 8);
-    return _mm_slli_epi64(shifted, (num_bytes - 8) * 8);
+    std::cout << std::setfill('0') << std::setw(sizeof(v) * 2) << std::hex << v
+      << " " << std::bitset<sizeof(v) * 8>(v) << std::endl;
   }
-  else
+
+  inline __m128i get_numeric_mask(__m128i chunk)
   {
-    auto partial_result = _mm_slli_epi64(a, num_bytes * 8);
-    auto overlay = _mm_srli_epi64(a, (8 - num_bytes) * 8);
-    overlay = _mm_slli_si128(overlay, 8);
-    return _mm_or_si128(partial_result, overlay);
+    const auto wrap = _mm_set1_epi8(-128);
+    const auto digit_upper_bound = _mm_set1_epi8(10) + wrap;
+    return _mm_cmplt_epi8(chunk + wrap, digit_upper_bound);
+  }
+
+  inline std::uint64_t get_digit_count_from_numeric_mask(__m128i mask)
+  {
+    auto condensed_mask = _mm_movemask_epi8(mask);
+    // cannot use leading zeros, because digits can be present in the string that
+    // are not part of the first numeric sequence
+    return __tzcnt_u64(~condensed_mask);
+  }
+
+  inline __m128i shift_bytes_left(__m128i a, std::uint64_t num_bytes)
+  {
+    // branching sucks
+    if (num_bytes >= 8)
+    {
+      auto shifted = _mm_slli_si128(a, 8);
+      return _mm_slli_epi64(shifted, (num_bytes - 8) * 8);
+    }
+    else
+    {
+      auto partial_result = _mm_slli_epi64(a, num_bytes * 8);
+      auto overlay = _mm_srli_epi64(a, (8 - num_bytes) * 8);
+      overlay = _mm_slli_si128(overlay, 8);
+      return _mm_or_si128(partial_result, overlay);
+    }
   }
 }
 
-inline std::from_chars_result from_chars(const char* first, const char* last, std::uint64_t& value)
+#define unlikely(...) __builtin_expect(!!(__VARGS__), 0)
+
+inline std::from_chars_result from_chars(const char* first, const char* last, std::uint64_t& result)
 {
-  auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(first));
-  const auto zeros = _mm_set1_epi8('0');
-  chunk = chunk - zeros;
+  auto buffer_size = last - first;
+  std::uint64_t value = 0;
 
-  const auto numeric_mask = get_numeric_mask(chunk);
-  const auto num_digits = get_digit_count_from_numeric_mask(numeric_mask);
+  if (buffer_size >= sizeof(__m128i))
+  {
+    auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(first));
+    const auto zeros = _mm_set1_epi8('0');
+    chunk = chunk - zeros;
 
-  chunk = shift_bytes_left(chunk, sizeof(chunk) - num_digits);
+    const auto numeric_mask = detail::get_numeric_mask(chunk);
+    const auto num_digits = detail::get_digit_count_from_numeric_mask(numeric_mask);
+    const auto num_non_digits = sizeof(chunk) - num_digits;
 
-  value = assemble_from_128i(chunk);
-  return {first + num_digits}; // TODO: return an error code
+    chunk = detail::shift_bytes_left(chunk, num_non_digits);
+    value = assemble_from_128i(chunk);
+    first += num_digits;
+    bool all_digits = num_non_digits == 0;
+    buffer_size = std::min(4l, (last - first) * all_digits); // at most another 4 digits
+  }
+
+  result = value;
+  return {first}; // TODO: return an error code
 }
 
 inline std::uint64_t parse_general_trick_simd(std::string_view s) noexcept
