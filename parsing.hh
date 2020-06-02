@@ -141,12 +141,8 @@ inline __m128i get_numeric_mask(__m128i chunk)
 
 inline std::uint64_t get_digit_count_from_numeric_mask(__m128i mask)
 {
-  // not using SSE sucks
-  auto lower_digits_count = __tzcnt_u64(~mask[0]);
-  auto upper_digits_count = __tzcnt_u64(~mask[1]);
-  const bool lower_has_all_digits = lower_digits_count == (sizeof(mask[0]) * 8);
-  upper_digits_count *= lower_has_all_digits;
-  return (lower_digits_count + upper_digits_count) >> 3;
+  auto condensed_mask = _mm_movemask_epi8(mask);
+  return __tzcnt_u64(~condensed_mask);
 }
 
 inline __m128i shift_bytes_left(__m128i a, std::uint64_t num_bytes)
