@@ -155,8 +155,19 @@ static void BM_shift_bytes_left(benchmark::State& state) {
   }
 }
 
+static void BM_shift_bytes_left_branchless(benchmark::State& state) {
+  std::uint64_t num_bytes = state.range(0);
+  const volatile __m128i value = _mm_set1_epi8(0xff);
+
+  for (auto _ : state) {
+    __m128i result = detail::shift_bytes_left_branchless(value, num_bytes);
+    benchmark::DoNotOptimize(result);
+  }
+}
+
 BENCHMARK(BM_tzcnt);
 BENCHMARK(BM_get_digit_count_from_numeric_mask);
 BENCHMARK(BM_shift_bytes_left)->DenseRange(0, 16, 1);
+BENCHMARK(BM_shift_bytes_left_branchless)->DenseRange(0, 16, 1);
 
 BENCHMARK_MAIN();

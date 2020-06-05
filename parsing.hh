@@ -134,6 +134,12 @@ namespace detail
       << " " << std::bitset<sizeof(v) * 8>(v) << std::endl;
   }
 
+  inline void print_bits(__m128i v)
+  {
+    print_bits(v[0]);
+    print_bits(v[1]);
+  }
+
   inline __m128i get_numeric_mask(__m128i chunk)
   {
     const auto wrap = _mm_set1_epi8(-128);
@@ -152,31 +158,47 @@ namespace detail
   inline __m128i shift_bytes_left(__m128i a, std::uint64_t num_bytes)
   {
     // branching sucks
+    auto shifted = _mm_slli_si128(a, 8);
     if (num_bytes >= 8)
     {
-      auto shifted = _mm_slli_si128(a, 8);
       return _mm_slli_epi64(shifted, (num_bytes - 8) * 8);
     }
     else
     {
       auto partial_result = _mm_slli_epi64(a, num_bytes * 8);
-      auto overlay = _mm_srli_epi64(a, (8 - num_bytes) * 8);
-      overlay = _mm_slli_si128(overlay, 8);
+      auto overlay = _mm_srli_epi64(shifted, (8 - num_bytes) * 8);
       return _mm_or_si128(partial_result, overlay);
     }
   }
+
+  // Implemented by stevenhoving in issue #3
+  inline __m128i shift_bytes_left_branchless(__m128i a, std::uint64_t num_bytes)
+  {
+    constexpr auto mask = static_cast<char>(-128);
+    static const char shift_shuffle_lookup[32]{
+      mask, mask, mask, mask, mask, mask, mask, mask, mask, mask, mask, mask, mask, mask, mask, mask,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    };
+
+    const auto lookup_center = shift_shuffle_lookup + 16;
+    const auto shuffle = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lookup_center - num_bytes));
+    return _mm_shuffle_epi8(a, shuffle);
+  }
+
 }
 
-#define unlikely(...) __builtin_expect(!!(__VARGS__), 0)
+#define unlikely(...) __builtin_expect(!!(__VA_ARGS__), 0)
+#define likely(...) __builtin_expect(!!(__VA_ARGS__), 1)
 
 inline std::from_chars_result from_chars(const char* first, const char* last, std::uint64_t& result)
 {
   auto buffer_size = last - first;
   std::uint64_t value = 0;
 
-  if (buffer_size >= sizeof(__m128i))
+  if (likely(buffer_size >= sizeof(__m128i)))
   {
     auto chunk = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(first));
+
     const auto zeros = _mm_set1_epi8('0');
     chunk = chunk - zeros;
 
@@ -184,11 +206,9 @@ inline std::from_chars_result from_chars(const char* first, const char* last, st
     const auto num_digits = detail::get_digit_count_from_numeric_mask(numeric_mask);
     const auto num_non_digits = sizeof(chunk) - num_digits;
 
-    chunk = detail::shift_bytes_left(chunk, num_non_digits);
+    chunk = detail::shift_bytes_left_branchless(chunk, num_non_digits);
     value = assemble_from_128i(chunk);
     first += num_digits;
-    bool all_digits = num_non_digits == 0;
-    buffer_size = std::min(4l, (last - first) * all_digits); // at most another 4 digits
   }
 
   result = value;

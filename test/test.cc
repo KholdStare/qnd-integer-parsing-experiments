@@ -2,6 +2,43 @@
 
 #include <gtest/gtest.h>
 
+TEST(ShiftLeft, Examples)
+{
+  const auto value = _mm_set1_epi8(1);
+
+  for (auto func : {&detail::shift_bytes_left})
+  {
+    auto shift_amount = 0;
+    for (auto expected : {
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+      })
+    {
+      auto computed = func(value, shift_amount);
+      EXPECT_EQ(expected[0], computed[0]) << shift_amount;
+      EXPECT_EQ(expected[1], computed[1]) << shift_amount;
+
+      shift_amount += 1;
+    }
+  }
+
+}
+
 TEST(Parse16Chars, Examples)
 {
   EXPECT_EQ(0, parse_16_chars("0000000000000000"));
